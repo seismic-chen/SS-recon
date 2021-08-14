@@ -1,0 +1,18 @@
+#!/bin/bash
+PS=Bounce_Point.ps
+R=110/160/20/60
+
+gmt gmtset PS_MEDIA A3
+gmt gmtset MAP_FRAME_TYPE plain
+gmt gmtset FONT_LABEL 8
+gmt gmtset FONT_ANNOT_PRIMARY 8
+
+gmt psbasemap -R$R -JM3i -Ba10f5 -BWeNs -K >> $PS 
+gmt pscoast -R -J -Dh -W1/0.3p -N1/0.2p -Ggray -O -K >> $PS
+awk '{print $2, $1}' Bounce_Point.txt | gmt psxy -J -R -Sc0.015c -Gblack -K -O >>$PS
+gmt psbasemap -R$R -JM3i -Ba10f5 -BWeNs -K -O >> $PS 
+
+gmt psxy -R -J -T -O >> $PS
+gmt psconvert $PS -A0.5c -Tg -P -Z
+
+rm gmt.* tmp.cpt
