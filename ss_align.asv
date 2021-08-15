@@ -1,0 +1,66 @@
+function dout = ss_align(din,times,N,t0,xwin,maxlag)
+% cross-correlate traces to obtain the optimal time lag between the
+% reference trace and each individual trace
+% conduct N cross-correlation
+trace_ref=[];
+traces=[];
+[nt,nx,ny,nh]=size(din);
+for ncorr = 1:N
+    d2d = reshape(din,nt,nx*ny*nh);
+    keep = any(d2d);
+    d2d(:,keep) = d2d(:,keep)*diag(1./max(d2d(:,keep)));
+    traces=d2d(:,keep);
+    % reference trace
+    trace_ref(:,ncorr) = mean(traces,2);
+    % inset the reference trace
+    traces = [trace_ref(:,ncorr) traces];
+    
+    % cut the waveform arround P
+    N = size(traces,2);
+    yshift=0;
+    tp=zeros(N,N);
+    traces_cut=[];
+    t_cut=[];
+    for n = 1:N
+        start = t0(n)+xwin(1);
+        finish = t0(n)+xwin(2);
+        [traces_cut(:,n), t_cut(:,n)] = chopSeis( traces(:,n), times(:,n), start, finish);
+        yshift=yshift+0.1;
+        traces_cut(:,n) = traces_cut(:,n)/max(traces_cut(:,n));
+        % time difference in t0
+        for m = 1:N
+            tp(n,m)=t0(m)-t0(n);
+        end
+    end
+    
+    dt = times(2,1)-times(1,1);
+    maxlag = round(maxlag/dt);
+    [C,lags] = xcorr(traces_cut,maxlag);
+    [~,index] = max(C);
+    I = reshape(index,N,N)';
+    % find the optimal delay time
+    tdelay = (lags(I(:)))*dt;
+    tdelay = triu(reshape(tdelay,N,N)-tp);
+    % take the first row, which is the time delay relative to the reference
+    % trace
+    tdiff = tdelay(1,:);
+    
+    % apply timeshift to the traces
+    traces_shift=[];
+    time=t(:);
+    for n = 1:length(tdiff)
+        data = traces(:,n);
+        datashift = fftShift(data,time,tdiff(n));
+        traces_shift(:,n) = datashift;
+    end
+    % remove the refernce trace
+    traces(:,1)=[];
+    traces_shift(:,1)=[];
+    figure;
+    imagesc(1:size(traces,2),time,[traces traces_shift])
+    colormap(seismic(3))
+    caxis([-0.05,0.05])
+    
+    d2d(:,keep)=traces_shift;
+    d1=reshape(d2d,nt,nx,ny,nh);
+end

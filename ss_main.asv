@@ -69,7 +69,7 @@ for k=1:length(ss)
     d=ss(k).d;
     t=ss(k).t;
     tss=ss(k).tss;
-    [d,is_reversal] = check_polarity(d,t,tss);
+    [d,is_reversal] = ss_check_polarity(d,t,tss);
     ss(k).is_reversal = is_reversal;
     if is_reversal
         ss(k).d = d;
@@ -96,15 +96,6 @@ ny=length(y);
 nh=length(h);
 nt = length(t);
 
-% x and y for all midpoints
-% mx = [ss.bplon];
-% my = [ss.bplat];
-% for i = 1:ny
-%     for j=1:nx
-%        
-%         
-%     end
-% end
 disp('Binning')
 % d1=zeros(nt, nx, ny, nh, nphi);
 d1 = zeros(nt, nx, ny, nh);
@@ -123,8 +114,8 @@ for n=1:length(ss)
     fold_map(i,j,k)=fold_map(i,j,k)+1;
     d=ss(n).d;
     % bandpass filter
-    d=bandpassSeis(d,1,flow,fhigh,3);
-    d1(:,i,j,k)=d1(:,i,j,k)+d(1:nt);
+    d_filt=bandpassSeis(d,1,flow,fhigh,3);
+    d1(:,i,j,k)=d1(:,i,j,k)+d_filt(1:nt);
 end
 
 % plot fold map
@@ -139,78 +130,21 @@ ylabel('Northing (km)');
 colorbar;
 set(gca,'fontsize',14)
 axis equal;
-
 %% apply cross-correlation to all stacked traces
-d2d = reshape(d1,nt,nx*ny*nh);
-keep = any(d2d);
-d2d(:,keep) = d2d(:,keep)*diag(1./max(d2d(:,keep)));
-
-traces=d2d(:,keep);
-% reference trace
-trace_ref = mean(traces,2);
-% inset the reference trace
-traces = [trace_ref traces];
-
+din = reshape(d1,nt,nx*ny*nh); % flatten the tensor
+N=5; % number of iteration for cross-correlation measurments
 t=0:nt-1;
-times = repmat(t(:),1,size(traces,2));
-t0=ones(1,size(traces,2))*900; % SS arrival
-xwin=[-100 100];
-maxlag=50;
-
-% cut the waveform arround P
-N = size(traces,2);
-yshift=0;
-tp=zeros(N,N);
-traces_cut=[];
-for n = 1:N
-    start = t0(n)+xwin(1);
-    finish = t0(n)+xwin(2);
-    [traces_cut(:,n), t_cut(:,n)] = chopSeis( traces(:,n), times(:,n), start, finish);
-    % debug
-%     plot(t(:,n),traces(:,n)+yshift,'b'); hold on; plot(t_cut(:,n),traces_cut(:,n)+yshift,'r','linewidth',1.2)
-%     plot(traces_cut(:,n)+yshift,'r'); hold on;
-    yshift=yshift+0.1;
-    traces_cut(:,n) = traces_cut(:,n)/max(traces_cut(:,n));
-    % time difference in t0
-    for m = 1:N
-       tp(n,m)=t0(m)-t0(n); 
-    end
-end
-
-dt = times(2,1)-times(1,1);
-maxlag = round(maxlag/dt);
-[C,lags] = xcorr(traces_cut,maxlag);
-[~,index] = max(C);
-I = reshape(index,N,N)';
-% find the optimal delay time
-tdelay = (lags(I(:)))*dt;
-tdelay = triu(reshape(tdelay,N,N)-tp);
-% take the first row, which is the time delay relative to the reference
-% trace
-tdiff = tdelay(1,:);
-
-% apply timeshift to the traces
-traces_shift=[];
-time=t(:);
-for n = 1:length(tdiff)
-    data = traces(:,n);
-    datashift = fftShift(data,time,tdiff(n));
-    traces_shift(:,n) = datashift;
-end
-% remove the refernce trace
-traces(:,1)=[];
-traces_shift(:,1)=[];
-figure;
-imagesc(1:size(traces,2),time,[traces traces_shift])
-colormap(seismic(3))
-caxis([-0.05,0.05])
-
-d2d(:,keep)=traces_shift;
-d1=reshape(d2d,nt,nx,ny,nh);
+times = repmat(t(:),1,size(din,2));
+t0=ones(1,size(din,2))*900; % SS arrival
+xwin=[-100 100]; % cross-correlation window
+maxlag=50; % maximum time lag
+is_plot=1; % flag controls plotting
+dout = ss_align(din,times,N,t0,xwin,maxlag,is_plot);
+d1 = reshape(dout,nt,nx,ny,nh);
 %% plotting
-ix=3;
-iy=3;
-xaxis=1:nh;
+ix=4;
+iy=6;
+xaxis=h;
 yaxis=0:nt-1;
 d2d = squeeze(d1(:,ix,iy,:));
 keep = any(d2d);
@@ -225,5 +159,3 @@ figure;
 xaxis=1:nx*ny*nh;
 yaxis=0:nt-1;
 wigb(d2d(:,keep),1,xaxis(keep),yaxis)
-
-

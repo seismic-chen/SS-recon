@@ -1,4 +1,4 @@
-function [d,is_reversal] = check_polarity(d,t,tss)
+function [d,is_reversal] = ss_check_polarity(d,t,tss)
 % check the ampltidue of the SS phase and make sure that the absolute value
 % the maximum possitive amplitude is always larger than that of the negative
 % amplitude, i.e., abs(max(sig)) > abs(min(sig)).
